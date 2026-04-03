@@ -1,0 +1,383 @@
+{% extends "base.html.twig" %}
+
+{% block title %}Live Crypto Dashboard{% endblock %}
+
+{% block additionalStyles %}
+    <style>
+        .price-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .price-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+        }
+        
+        .price-display {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #00d4aa;
+            margin: 20px 0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .price-label {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .price-change {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+        
+        .price-change.up {
+            color: #00d4aa;
+        }
+        
+        .price-change.down {
+            color: #ff6b6b;
+        }
+        
+        .chart-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            margin-top: 30px;
+        }
+        
+        .chart-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #00d4aa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #00d4aa;
+            transform: translateY(-3px);
+        }
+        
+        .stat-label {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00d4aa;
+        }
+        
+        .live-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #00d4aa;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        
+        .loading {
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0%, 100% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <!-- Header with Live Indicator -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 style="font-size: 2.5rem; font-weight: bold;">
+                <span class="live-indicator"></span>Live Bitcoin Price Tracker
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.7); margin-top: 10px;">Actualisé en temps réel via Mercure</p>
+        </div>
+    </div>
+    
+    <!-- Main Price Card -->
+    <div class="row">
+        <div class="col-12 col-lg-6 mx-auto mb-4">
+            <div class="price-card">
+                <div class="price-label">Bitcoin Price</div>
+                <div class="price-display" id="btc-price" 
+                     data-turbo-temporary-stream-source="{{ mercure_public_url }}?topic=btc-data">
+                    ${{ initial_price|number_format(0, '.', ',') }}
+                </div>
+                <div class="price-label">USD</div>
+                <div class="price-change up" id="price-change">
+                    <i class="fas fa-arrow-up"></i> +0.00%
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Prix Minimum</div>
+            <div class="stat-value" id="min-price">{{ initial_price }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Prix Maximum</div>
+            <div class="stat-value" id="max-price">{{ initial_price }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Prix Moyen</div>
+            <div class="stat-value" id="avg-price">{{ initial_price }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Nombre de Mises à Jour</div>
+            <div class="stat-value" id="update-count">1</div>
+        </div>
+    </div>
+    
+    <!-- Chart -->
+    <div class="chart-card">
+        <div class="chart-title">
+            <i class="fas fa-chart-line"></i> Prix au fil du temps (30 derniers prix)
+        </div>
+        <div style="max-width: 100%; height: 400px;">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+    // Initialize chart
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const initialPrice = {{ initial_price }};
+    let priceHistory = [initialPrice];
+    let updateCount = 1;
+    
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: 1}, (_, i) => i + 1),
+            datasets: [{
+                label: 'BTC Price (USD)',
+                data: priceHistory,
+                borderColor: '#00d4aa',
+                backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#667eea',
+                pointBorderColor: '#00d4aa',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#fff',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        font: {
+                            size: 12
+                        },
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+    
+    // Function to format price for display
+    function formatPrice(price) {
+        return '$' + Math.round(price).toLocaleString();
+    }
+    
+    // Function to parse price from text
+    function parsePrice(text) {
+        const cleaned = text.replace(/[^\d]/g, '');
+        return parseInt(cleaned) || 0;
+    }
+    
+    // Function to update price
+    function updatePrice(newPrice) {
+        if (newPrice <= 0) return;
+        
+        const oldPrice = priceHistory[priceHistory.length - 1];
+        if (newPrice === oldPrice) return; // Skip if identical
+        
+        priceHistory.push(newPrice);
+        updateCount++;
+        
+        // Keep only last 30 prices
+        if (priceHistory.length > 30) {
+            priceHistory.shift();
+        }
+        
+        // Update price display
+        document.getElementById('btc-price').textContent = formatPrice(newPrice);
+        document.getElementById('update-count').textContent = updateCount;
+        
+        // Calculate and update change percentage
+        const changePercent = ((newPrice - oldPrice) / oldPrice * 100).toFixed(2);
+        const changeElement = document.getElementById('price-change');
+        const changeClass = changePercent >= 0 ? 'up' : 'down';
+        const changeIcon = changePercent >= 0 ? 'arrow-up' : 'arrow-down';
+        changeElement.className = 'price-change ' + changeClass;
+        changeElement.innerHTML = `<i class="fas fa-${changeIcon}"></i> ${Math.abs(changePercent)}%`;
+        
+        // Update statistics
+        const minPrice = Math.min(...priceHistory);
+        const maxPrice = Math.max(...priceHistory);
+        const avgPrice = (priceHistory.reduce((a, b) => a + b) / priceHistory.length);
+        
+        document.getElementById('min-price').textContent = formatPrice(minPrice);
+        document.getElementById('max-price').textContent = formatPrice(maxPrice);
+        document.getElementById('avg-price').textContent = formatPrice(avgPrice);
+        
+        // Update chart
+        chart.data.datasets[0].data = priceHistory;
+        chart.data.labels = Array.from({length: priceHistory.length}, (_, i) => i + 1);
+        chart.update();
+        
+        console.log('Price updated:', newPrice, 'Old:', oldPrice, 'Change:', changePercent + '%');
+    }
+    
+    // Connect to Mercure SSE for real-time updates
+    function connectToMercure() {
+        const mercureUrl = 'http://localhost:56427/.well-known/mercure?topic=btc-data';
+        console.log('Connecting to Mercure:', mercureUrl);
+        
+        const eventSource = new EventSource(mercureUrl);
+        
+        eventSource.onmessage = function(event) {
+            console.log('Mercure message received:', event.data);
+
+            const raw = String(event.data);
+            // Try standard template extraction with lenient regex
+            const templateMatch = raw.match(/<template[^>]*>([\s\S]*?)<\/template>/i);
+            let newPrice = 0;
+
+            if (templateMatch && templateMatch[1]) {
+                const cleaned = templateMatch[1].replace(/[^0-9]/g, '');
+                newPrice = Number(cleaned);
+                console.log('Template assumed value:', templateMatch[1].trim(), 'cleaned:', cleaned, 'newPrice:', newPrice);
+            }
+
+            if (newPrice > 0) {
+                updatePrice(newPrice);
+            } else {
+                // fallback: if any number exists in payload
+                const fallback = raw.match(/([0-9]+)(?:\.[0-9]{1,2})?/);
+                if (fallback && fallback[1]) {
+                    newPrice = Number(fallback[1]);
+                    console.log('Fallback number matched:', fallback[1], 'newPrice:', newPrice);
+                    if (newPrice > 0) {
+                        updatePrice(newPrice);
+                        return;
+                    }
+                }
+                console.warn('Price ignored (<=0):', newPrice, 'raw:', raw);
+            }
+        };
+        
+        eventSource.onerror = function(event) {
+            console.error('Mercure SSE error:', event);
+            eventSource.close();
+            
+            // Reconnect after 3 seconds
+            setTimeout(connectToMercure, 3000);
+        };
+        
+        console.log('Connected to Mercure SSE');
+    }
+    
+    // Start listening to Mercure when page loads
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', connectToMercure);
+    } else {
+        connectToMercure();
+    }
+</script>
+{% endblock %}
